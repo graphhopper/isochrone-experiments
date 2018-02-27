@@ -1,0 +1,45 @@
+* { margin: 0px; }
+#map { height: 100%; }
+
+.outer {
+    display: block;
+    text-align: center;
+    position: relative;
+    z-index: 9999;
+}
+
+.inner {
+    display: inline-block;
+    width: 25%;
+    height: 5%;
+    background: white;
+}
+
+.elements {
+  position: relative;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.vehicles {
+  float: left;
+  color: white;
+  cursor: pointer;
+}
+
+.test {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  width: 25%;
+  height: 5%;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  transform: translate(-50%, -50%);
+  margin: 0 auto;
+}
+
+#car {
+  padding-left: 20px;
+  color: #d3d3d3;
+}
