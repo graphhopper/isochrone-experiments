@@ -7,23 +7,33 @@
   integrity="sha512-/Nsx9X4HebavoBvEBuyp3I7od5tA0UzAxs+j83KgC8PU0kgB4XiK4Lfe4y4cgBtaRJQEIFCW+oC506aPT2L1zw=="
   crossorigin=""></script>
 <script defer src="https://use.fontawesome.com/releases/v5.0.7/js/all.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.slim.min.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="map">
     <div class="outer">
-      <div class="test">
+      <div class="menubar">
         <div class="elements">
           <div class="vehicles" id="vehicles">
-            <i id="foot" style="padding-left: 20px;" class="fas fa-male fa-2x" onclick="toggle(this.id);"></i><i id="car" class="fas fa-car fa-2x" onclick="toggle(this.id);"></i>
+            <span><i id="foot" style="padding-left: 20px;" class="fas fa-male fa-2x"></i></span><span><i id="car" class="fas fa-car fa-2x"></i></span>
           </div>
-          <input type="range" style="width: 70%; cursor: pointer;" name="timelimit" id="timelimit" value="24" min="1" max="30">
+          <input type="range" style="width: 70%; cursor: pointer;" name="timelimit" id="timelimit" value="24" min="5" max="30">
           <div style="float: right; color: white; padding-right: 20px;">
-            <span id="status"> 24m </span>
+            <span id="status">24 MIN</span>
           </div>
         </div>
-      <div>
+      </div>
+
+      <div id="legend">
+        <div id="band"></div>
+        <div class="dark">
+            <span style="left:0px; position:absolute; text-align:center" id="min"><5</span>
+            <span style="left:45%; position:absolute">MIN</span>
+            <span style="right:0px; position:absolute" id="max">24</span>
+        </div>
+      </div>
     </div>
   </div>
-  <script src="script.js"></script>
+  <script src="bundle.js"></script>
 </body>

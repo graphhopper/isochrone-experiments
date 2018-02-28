@@ -1,5 +1,7 @@
 var map = L.map('map').setView([52.517161014258136, 13.388729095458986], 13);
+var concaveman = require('concaveman');
 
+var shapes = [];
 var polygons = [];
 var maxTimeLimitInSeconds = 24 * 60;
 var steps = 5;
@@ -7,41 +9,63 @@ var slider = document.getElementById("timelimit");
 var vehicles = document.getElementById("vehicles");
 var vehicle = "foot";
 
-L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/dark-v9/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
     maxZoom: 18,
     id: 'mapbox.streets'
 }).addTo(map);
 
 map.on('click', onMapClick);
 slider.onchange = function(){
-  document.getElementById("status").innerHTML = slider.value + "m";
+  document.getElementById("status").innerHTML = slider.value + " MIN";
+  document.getElementById("max").innerHTML = slider.value;
+  document.getElementById("min").innerHTML = "<" + (slider.value / steps).toFixed(0);
 }
 document.getElementsByClassName("outer")[0].onclick = function(e){
   e.stopImmediatePropagation();
 }
 
-function toggle(id){
-  var children = vehicles.children;
+$("span").click(function(e){
+  var children = $("span").children();
+  var id = $(this).children()[0].id;
   for(var i = 0; i < children.length; i++){
     var child = children[i];
     if(child.id == id) {
       vehicle = id;
       child.style.color = "white";
     }else{
-      child.style.color =  "#d3d3d3";
+      child.style.color =  "#696969";
     }
   }
-}
+});
 
 function onMapClick(e){
   maxTimeLimitInSeconds = document.getElementById("timelimit").value * 60;
-  for(var i = 0; i < polygons.length; i++){
-    map.removeLayer(polygons[i]);
+  for(var i = 0; i < shapes.length; i++){
+    map.removeLayer(shapes[i]);
   }
+  updatePolygons(e);
+}
+
+function updatePolygons(e){
+  var start = Date.now();
+  for(var i = 1; i <= steps; i++){
+    polygons[i] = apiCall(e.latlng.lat, e.latlng.lng, maxTimeLimitInSeconds / steps * i);
+  }
+  var delta = Date.now() - start;
+  start = Date.now();
+  drawIsochrones();
+  var deltadraw = Date.now() - start;
+  console.log("Hull: " + delta + "ms Draw: " + deltadraw + "ms");
+}
+
+function drawIsochrones(){
   for(var i = steps; i > 0; i--){
-    polygons.push(L.polygon(apiCall(e.latlng.lat, e.latlng.lng, maxTimeLimitInSeconds / steps * i), {
-      fillColor: hslToHex(220 / steps * (i - 1), 100, 50),
-      fillOpacity: 0.5,
+    shapes.push(L.polygon([polygons[i], polygons[i - 1] === undefined ? [] : polygons[i - 1]], {
+      fill: true,
+      color: hslToHex(260 / steps * (i - 1), 80, 60),
+      fillColor: hslToHex(260 / steps * (i - 1), 80, 60),
+      opacity: 1,
+      weight: 4
     }).addTo(map));
   }
 }
@@ -70,32 +94,7 @@ function apiCall(lat, lng, timeLimitInSeconds){
     points[i] = [_points[1], _points[0]];
   }
 
-  return convexHull(points);
-}
-
-function convexHull(points) {
-  points.sort(function (a, b) {
-    return a[0] != b[0] ? a[0] - b[0] : a[1] - b[1];
-  });
-
-  var n = points.length;
-  var hull = [];
-
-  for (var i = 0; i < 2 * n; i++) {
-    var j = i < n ? i : 2 * n - 1 - i;
-    while (hull.length >= 2 && removeMiddle(hull[hull.length - 2], hull[hull.length - 1], points[j]))
-      hull.pop();
-    hull.push(points[j]);
-  }
-
-  hull.pop();
-  return hull;
-}
-
-function removeMiddle(a, b, c) {
-  var cross = (a[0] - b[0]) * (c[1] - b[1]) - (a[1] - b[1]) * (c[0] - b[0]);
-  var dot = (a[0] - b[0]) * (c[0] - b[0]) + (a[1] - b[1]) * (c[1] - b[1]);
-  return cross < 0 || cross == 0 && dot <= 0;
+  return concaveman(points, 2.5, 0);
 }
 
 function hslToHex(h, s, l) {
