@@ -1,4 +1,202 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+var host = "localhost:8989";
+
+var map = L.map('map').setView([52.517161014258136, 13.388729095458986], 13);
+
+var GHHelper = require("./utils/GHHelper");
+var ghHelper = new GHHelper(host);
+
+var GUI = require("./utils/GUI");
+var gui = new GUI(map, ghHelper);
+
+},{"./utils/GHHelper":2,"./utils/GUI":3}],2:[function(require,module,exports){
+var concaveman = require("concaveman");
+
+function GHHelper(host){
+  this.host = host;
+}
+
+module.exports = GHHelper;
+
+GHHelper.prototype = {
+  getPoints: function(lat, lng, vehicle, buckets, timeLimit){
+    var result = "pointlist";
+    var url = "http://" + this.host + "/isochrone?"
+            + "point=" + lat + "%2C" + lng
+            + "&time_limit=" + timeLimit
+            + "&vehicle=" + vehicle
+            + "&buckets=" + buckets
+            + "&result=" + result;
+
+    var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", url, false);
+        xhttp.setRequestHeader("Content-type", "application/json");
+        xhttp.send();
+
+    var polygons = JSON.parse(xhttp.responseText)["polygons"];
+    var hull = [[]];
+
+    //flip lat & lng
+    for(var i = 0; i < polygons.length - 1; i++){
+      var points = polygons[i];
+      for(var j = 0; j < points.length; j++){
+        var _points = points[j];
+        points[j] = [_points[1], _points[0]];
+      }
+      hull[i] = concaveman(points, 1, 0.003);
+    }
+
+    return hull;
+  },
+
+  getLatLng: function(city){
+    var url = "http://" + this.host + "/geocoder?q=" + city;
+    var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", url, false);
+        xhttp.setRequestHeader("Content-type", "application/json");
+        xhttp.send();
+    var point = JSON.parse(xhttp.responseText)["hits"][0].point;
+    return [point.lat, point.lng];
+  }
+};
+
+},{"concaveman":4}],3:[function(require,module,exports){
+var _this;
+
+function GUI(map, ghHelper){
+  this.map = map;
+  this.GHHelper = ghHelper;
+
+  this.buckets = 5;
+  this.maxTimeLimitInSeconds = 24 * 60;
+
+  this.slider = document.getElementById("timelimit"); //Slider Control
+  this.vehicles = document.getElementById("vehicles"); //Vehicles Div
+  this.vehicle = "foot"; //Current vehicle
+  this.input = document.getElementsByClassName("search")[0]; //Search Bar (Geocoder)
+  this.menubar = document.getElementsByClassName("menubar")[0];
+
+  this.status = document.getElementById("status"); //Menu Bar Status
+  this.max = document.getElementById("max"); //Legend max
+  this.min = document.getElementById("min"); //Legend min
+
+  this.shapes = [];
+  this.polygons = [];
+
+  this.init();
+}
+
+module.exports = GUI;
+
+GUI.prototype = {
+  init: function(){
+    L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/dark-v9/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+        maxZoom: 18,
+        id: 'mapbox.streets'
+    }).addTo(this.map);
+
+    this.setUpHandlers();
+  },
+
+  setUpHandlers: function(){
+    _this = this;
+    this.map.on('click', this.onMapClick);
+    this.slider.addEventListener('change', this.onSliderChange);
+    this.input.addEventListener('keydown', this.onInputKeyDown);
+    this.menubar.addEventListener('click', function(e){
+      e.stopPropagation();
+    });
+
+    $("span").click(this.toggleVehicle);
+  },
+
+  toggleVehicle: function(e){
+    var children = $("span").children();
+    var id = $(this).children()[0].id;
+    for(var i = 0; i < children.length; i++){
+      var child = children[i];
+      if(child.id == id) {
+        _this.vehicle = id;
+        child.style.color = "white";
+      }else{
+        child.style.color =  "#696969";
+      }
+    }
+  },
+
+  onInputKeyDown: function(e){
+    /*if (e.keyCode == 13) {
+      getLatLng(input.value);
+    }*/
+  },
+
+  onSliderChange: function(){
+    _this.status.innerHTML = _this.slider.value + " MIN";
+    _this.max.innerHTML = _this.slider.value;
+    _this.min.innerHTML = "<" + (_this.slider.value / _this.buckets).toFixed(0);
+    _this.maxTimeLimitInSeconds = _this.slider.value * 60;
+  },
+
+  onMapClick: function(e){
+    for(var i = 0; i < _this.shapes.length; i++){
+      _this.map.removeLayer(_this.shapes[i]);
+    }
+    _this.updatePolygons(e);
+  },
+
+  updatePolygons: function(e){
+    var start = Date.now();
+    _this.polygons = _this.GHHelper.getPoints(e.latlng.lat, e.latlng.lng, _this.vehicle, _this.buckets, _this.maxTimeLimitInSeconds);
+    var delta = Date.now() - start;
+    start = Date.now();
+    _this.drawIsochrones();
+    var deltadraw = Date.now() - start;
+    console.log("Hull: " + delta + "ms Add: " + deltadraw + "ms");
+  },
+
+  drawIsochrones: function(){
+    for(var i = _this.polygons.length - 1; i >= 0; i--){
+      _this.shapes.push(L.polygon([_this.polygons[i], _this.polygons[i - 1] === undefined ? [] : _this.polygons[i - 1]], {
+        fill: true,
+        color: _this.hslToHex(260 / _this.buckets * (i - 1), 80, 60),
+        fillColor: _this.hslToHex(260 / _this.buckets * (i - 1), 80, 60),
+        opacity: 1,
+        weight: 4
+      }).addTo(_this.map));
+    }
+  },
+
+  hslToHex: function(h, s, l){
+    h /= 360;
+    s /= 100;
+    l /= 100;
+    let r, g, b;
+    if (s === 0) {
+      r = g = b = l; // achromatic
+    } else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1;
+        if (t > 1) t -= 1;
+        if (t < 1 / 6) return p + (q - p) * 6 * t;
+        if (t < 1 / 2) return q;
+        if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+        return p;
+      };
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+      const p = 2 * l - q;
+      r = hue2rgb(p, q, h + 1 / 3);
+      g = hue2rgb(p, q, h);
+      b = hue2rgb(p, q, h - 1 / 3);
+    }
+    const toHex = x => {
+      const hex = Math.round(x * 255).toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    };
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+};
+
+},{}],4:[function(require,module,exports){
 'use strict';
 
 var rbush = require('rbush');
@@ -340,7 +538,7 @@ function sqSegSegDist(x0, y0, x1, y1, x2, y2, x3, y3) {
     return dx * dx + dy * dy;
 }
 
-},{"monotone-convex-hull-2d":2,"point-in-polygon":3,"rbush":5,"robust-orientation":6,"tinyqueue":10}],2:[function(require,module,exports){
+},{"monotone-convex-hull-2d":5,"point-in-polygon":6,"rbush":8,"robust-orientation":9,"tinyqueue":13}],5:[function(require,module,exports){
 'use strict'
 
 module.exports = monotoneConvexHull2D
@@ -422,7 +620,7 @@ function monotoneConvexHull2D(points) {
   //Return result
   return result
 }
-},{"robust-orientation":6}],3:[function(require,module,exports){
+},{"robust-orientation":9}],6:[function(require,module,exports){
 module.exports = function (point, vs) {
     // ray-casting algorithm based on
     // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
@@ -442,7 +640,7 @@ module.exports = function (point, vs) {
     return inside;
 };
 
-},{}],4:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 'use strict';
 
 module.exports = quickselect;
@@ -502,7 +700,7 @@ function defaultCompare(a, b) {
     return a < b ? -1 : a > b ? 1 : 0;
 }
 
-},{}],5:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 'use strict';
 
 module.exports = rbush;
@@ -1066,7 +1264,7 @@ function multiSelect(arr, left, right, n, compare) {
     }
 }
 
-},{"quickselect":4}],6:[function(require,module,exports){
+},{"quickselect":7}],9:[function(require,module,exports){
 "use strict"
 
 var twoProduct = require("two-product")
@@ -1257,7 +1455,7 @@ function generateOrientationProc() {
 }
 
 generateOrientationProc()
-},{"robust-scale":7,"robust-subtract":8,"robust-sum":9,"two-product":11}],7:[function(require,module,exports){
+},{"robust-scale":10,"robust-subtract":11,"robust-sum":12,"two-product":14}],10:[function(require,module,exports){
 "use strict"
 
 var twoProduct = require("two-product")
@@ -1308,7 +1506,7 @@ function scaleLinearExpansion(e, scale) {
   g.length = count
   return g
 }
-},{"two-product":11,"two-sum":12}],8:[function(require,module,exports){
+},{"two-product":14,"two-sum":15}],11:[function(require,module,exports){
 "use strict"
 
 module.exports = robustSubtract
@@ -1465,7 +1663,7 @@ function robustSubtract(e, f) {
   g.length = count
   return g
 }
-},{}],9:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict"
 
 module.exports = linearExpansionSum
@@ -1622,7 +1820,7 @@ function linearExpansionSum(e, f) {
   g.length = count
   return g
 }
-},{}],10:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 'use strict';
 
 module.exports = TinyQueue;
@@ -1712,7 +1910,7 @@ TinyQueue.prototype = {
     }
 };
 
-},{}],11:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 "use strict"
 
 module.exports = twoProduct
@@ -1746,7 +1944,7 @@ function twoProduct(a, b, result) {
 
   return [ y, x ]
 }
-},{}],12:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 "use strict"
 
 module.exports = fastTwoSum
@@ -1764,133 +1962,4 @@ function fastTwoSum(a, b, result) {
 	}
 	return [ar+br, x]
 }
-},{}],13:[function(require,module,exports){
-var map = L.map('map').setView([52.517161014258136, 13.388729095458986], 13);
-var concaveman = require('concaveman');
-
-var shapes = [];
-var polygons = [];
-var maxTimeLimitInSeconds = 24 * 60;
-var steps = 5;
-var slider = document.getElementById("timelimit");
-var vehicles = document.getElementById("vehicles");
-var vehicle = "foot";
-
-L.tileLayer('https://api.mapbox.com/styles/v1/mapbox/dark-v9/tiles/{z}/{x}/{y}?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
-    maxZoom: 18,
-    id: 'mapbox.streets'
-}).addTo(map);
-
-map.on('click', onMapClick);
-slider.onchange = function(){
-  document.getElementById("status").innerHTML = slider.value + " MIN";
-  document.getElementById("max").innerHTML = slider.value;
-  document.getElementById("min").innerHTML = "<" + (slider.value / steps).toFixed(0);
-}
-document.getElementsByClassName("outer")[0].onclick = function(e){
-  e.stopImmediatePropagation();
-}
-
-$("span").click(function(e){
-  var children = $("span").children();
-  var id = $(this).children()[0].id;
-  for(var i = 0; i < children.length; i++){
-    var child = children[i];
-    if(child.id == id) {
-      vehicle = id;
-      child.style.color = "white";
-    }else{
-      child.style.color =  "#696969";
-    }
-  }
-});
-
-function onMapClick(e){
-  maxTimeLimitInSeconds = document.getElementById("timelimit").value * 60;
-  for(var i = 0; i < shapes.length; i++){
-    map.removeLayer(shapes[i]);
-  }
-  updatePolygons(e);
-}
-
-function updatePolygons(e){
-  var start = Date.now();
-  for(var i = 1; i <= steps; i++){
-    polygons[i] = apiCall(e.latlng.lat, e.latlng.lng, maxTimeLimitInSeconds / steps * i);
-  }
-  var delta = Date.now() - start;
-  start = Date.now();
-  drawIsochrones();
-  var deltadraw = Date.now() - start;
-  console.log("Hull: " + delta + "ms Draw: " + deltadraw + "ms");
-}
-
-function drawIsochrones(){
-  for(var i = steps; i > 0; i--){
-    shapes.push(L.polygon([polygons[i], polygons[i - 1] === undefined ? [] : polygons[i - 1]], {
-      fill: true,
-      color: hslToHex(260 / steps * (i - 1), 80, 60),
-      fillColor: hslToHex(260 / steps * (i - 1), 80, 60),
-      opacity: 1,
-      weight: 4
-    }).addTo(map));
-  }
-}
-
-function apiCall(lat, lng, timeLimitInSeconds){
-  var buckets = 1;
-  //var timeLimitInSeconds = 60*6;
-  var result = "pointlist";
-  var url = "http://localhost:8989/isochrone?"
-          + "point=" + lat + "%2C" + lng
-          + "&time_limit=" + timeLimitInSeconds
-          + "&vehicle=" + vehicle
-          + "&buckets=" + buckets
-          + "&result=" + result;
-
-  var xhttp = new XMLHttpRequest();
-      xhttp.open("GET", url, false);
-      xhttp.setRequestHeader("Content-type", "application/json");
-      xhttp.send();
-
-  var points = JSON.parse(xhttp.responseText)["polygons"][0];
-
-  //flip lat & lng
-  for(var i = 0; i < points.length; i++){
-    var _points = points[i];
-    points[i] = [_points[1], _points[0]];
-  }
-
-  return concaveman(points, 2.5, 0);
-}
-
-function hslToHex(h, s, l) {
-  h /= 360;
-  s /= 100;
-  l /= 100;
-  let r, g, b;
-  if (s === 0) {
-    r = g = b = l; // achromatic
-  } else {
-    const hue2rgb = (p, q, t) => {
-      if (t < 0) t += 1;
-      if (t > 1) t -= 1;
-      if (t < 1 / 6) return p + (q - p) * 6 * t;
-      if (t < 1 / 2) return q;
-      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-      return p;
-    };
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    r = hue2rgb(p, q, h + 1 / 3);
-    g = hue2rgb(p, q, h);
-    b = hue2rgb(p, q, h - 1 / 3);
-  }
-  const toHex = x => {
-    const hex = Math.round(x * 255).toString(16);
-    return hex.length === 1 ? '0' + hex : hex;
-  };
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-}
-
-},{"concaveman":1}]},{},[13]);
+},{}]},{},[1]);
