@@ -36,6 +36,9 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.*;
+import java.io.*;
+
+import java.nio.ByteBuffer;
 
 import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
 
@@ -60,12 +63,56 @@ public class ReachServlet extends GHBaseServlet {
     public void doGet(HttpServletRequest httpReq, HttpServletResponse httpRes) throws ServletException, IOException {
         try {
             Map<String, Object> map = doReachCalc(httpReq, httpRes);
-            writeJson(httpReq, httpRes, objectMapper.getNodeFactory().pojoNode(map));
+            List<List<Double[]>> l = (List<List<Double[]>>) map.get("polygons");
+            //int trybranch = 2;
+
+            for(int i = 0; i < l.size(); i++){ //Loop through each bucket TO VECTOR
+                List<Double[]> b = l.get(i);
+                List<Double[]> v = new ArrayList<Double[]>();
+                v.add(0, b.get(0));
+                //System.out.println("LOLOLOL");
+
+                for(int j = 1; j < b.size(); j++){
+                    Double[] d = b.get(j);
+                    v.add(new Double[]{d[0] - b.get(j - 1)[0], d[1] - b.get(j - 1)[1]});
+                }
+                l.set(i, v);
+            }
+
+            List<Double[]> ex = l.get(2);
+            //                           NUM OF BUCKETS
+            //ByteBuffer bb = ByteBuffer.allocate(1 + 2 * l.size() + l.get(0).size() * 2 * 8);
+            ByteBuffer bb = ByteBuffer.allocate(2 + ex.size() * 2 * 4);
+            //                            ITEMS IN BUCKET (SHORT = 2 BYTES)
+
+            bb.putShort((short) ex.size());
+            System.out.println("SIZE: " + (short)ex.size());
+            for(int i = 0; i < ex.size(); i++){
+                bb.putInt((int)(ex.get(i)[0] * 1000000));
+                bb.putInt((int)(ex.get(i)[1] * 1000000));
+                System.out.println((int)(ex.get(i)[1] * 1000000));
+            }
+            //System.out.println("LOL: " + l.get(0).get(0)[1]);
+            System.out.println("Length: " + 2 + ex.size() * 2 * 4 + " | ArraySize: " + bb.array().length);
+            writeBytes(httpReq, httpRes, bb.array()); //20% smaller
+            //writeResponse(httpRes, Arrays.toString(bb.array()));
+            //writeJson(httpReq, httpRes, objectMapper.getNodeFactory().pojoNode(ex));
+            //writeJson(httpReq, httpRes, objectMapper.getNodeFactory().pojoNode(map));
         } catch (Exception ex) {
             Map<String, Object> json = new HashMap<>();
             json.put("message", getMessage(ex));
             writeJsonError(httpRes, SC_BAD_REQUEST, objectMapper.getNodeFactory().pojoNode(json));
         }
+    }
+
+    public static byte[] toByteArray(double value) {
+        byte[] bytes = new byte[8];
+        ByteBuffer.wrap(bytes).putDouble(value);
+        return bytes;
+    }
+
+    public static double toDouble(byte[] bytes) {
+        return ByteBuffer.wrap(bytes).getDouble();
     }
 
     private String getMessage(Throwable t) {

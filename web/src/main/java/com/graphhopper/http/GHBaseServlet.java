@@ -36,6 +36,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.GZIPOutputStream;
+import java.io.*;
 
 import static javax.servlet.http.HttpServletResponse.SC_BAD_REQUEST;
 import static javax.servlet.http.HttpServletResponse.SC_OK;
@@ -73,6 +75,21 @@ public class GHBaseServlet extends HttpServlet {
         } else {
             res.setContentType("application/json");
             writeResponse(res, objectWriter.writeValueAsString(json));
+        }
+    }
+
+    protected void writeBytes(HttpServletRequest req, HttpServletResponse res, byte[] data){
+        try {
+            InputStream inputStream = req.getInputStream();
+            OutputStream outputStream = res.getOutputStream();
+
+            res.setStatus(SC_OK);
+            res.setCharacterEncoding("UTF-8"); //For testing purposes
+            res.setContentType("application/json");
+
+            outputStream.write(data);
+        } catch (IOException ex) {
+            logger.error("Cannot write message", ex);
         }
     }
 
@@ -157,6 +174,9 @@ public class GHBaseServlet extends HttpServlet {
 
     public void writeResponse(HttpServletResponse res, String str) {
         try {
+            /*str = compress(str);
+            res.addHeader("Content-Encoding:", "gzip");
+            res.setHeader("Content-Disposition","gzip");*/
             res.setStatus(SC_OK);
             res.getWriter().append(str);
         } catch (IOException ex) {
@@ -170,4 +190,16 @@ public class GHBaseServlet extends HttpServlet {
                 m.put(e.getKey(), e.getValue()[0]);
         }
     }
+    public static String compress(String str) throws IOException {
+        if (str == null || str.length() == 0) {
+            return str;
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        GZIPOutputStream gzip = new GZIPOutputStream(out);
+        gzip.write(str.getBytes());
+        gzip.close();
+        String outStr = out.toString("UTF-8");
+        return outStr;
+    }
+
 }
