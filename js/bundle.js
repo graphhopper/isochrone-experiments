@@ -13,13 +13,13 @@ var gui = new GUI(map, ghHelper);
 var concaveman = require("concaveman");
 
 function GHHelper(host){
-  this.host = host;
+  this.host = host; //localhost
 }
 
 module.exports = GHHelper;
 
 GHHelper.prototype = {
-  getPoints: function(lat, lng, vehicle, buckets, timeLimit){
+  getPoints: function(lat, lng, vehicle, buckets, timeLimit, callback){
     var result = "pointlist";
     var url = "http://" + this.host + "/isochrone?"
             + "point=" + lat + "%2C" + lng
@@ -29,28 +29,45 @@ GHHelper.prototype = {
             + "&result=" + result;
 
     var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", url, false);
+        xhttp.open("GET", url, true);
+        xhttp.responseType = 'arraybuffer';
+        xhttp.callback = callback;
         xhttp.setRequestHeader("Content-type", "application/json");
-        xhttp.send();
 
-    var polygons = JSON.parse(xhttp.responseText)["polygons"];
-    var hull = [[]];
+    var _this = this;
 
-    //flip lat & lng
-    for(var i = 0; i < polygons.length - 1; i++){
-      var points = polygons[i];
-      for(var j = 0; j < points.length; j++){
-        var _points = points[j];
-        points[j] = [_points[1], _points[0]];
+    xhttp.onload = function(e) {
+      var arrayBuffer = xhttp.response;
+      var dataView = new DataView(arrayBuffer);
+
+      var pointer = 0;
+      var polygons = [];
+      var num_buckets = dataView.getInt16(pointer);
+      pointer += 2;
+
+      for(var i = 0; i < num_buckets; i++){
+        var items_in_bucket = dataView.getUint16(pointer);
+        pointer += 2;
+
+        var bucket = [];
+        for(var j = 0; j < items_in_bucket; j++){
+          var x = dataView.getUint32(pointer);
+          pointer += 4;
+          var y = dataView.getUint32(pointer);
+          pointer += 4;
+          bucket.push([(y / 1000000), (x / 1000000)]);
+        }
+        polygons.push(concaveman(bucket, 2, 0));
       }
-      hull[i] = concaveman(points, 1, 0.003);
+
+      callback(polygons);
     }
 
-    return hull;
+    xhttp.send();
   },
 
   getLatLng: function(city){
-    var url = "http://" + this.host + "/geocoder?q=" + city;
+    var url = "https://graphhopper.com/api/1//geocode?limit=6&type=json&key=2a24e316-61ea-4850-b231-4ef2fe25d229&locale=de-DE&q=" + city;
     var xhttp = new XMLHttpRequest();
         xhttp.open("GET", url, false);
         xhttp.setRequestHeader("Content-type", "application/json");
@@ -67,8 +84,8 @@ function GUI(map, ghHelper){
   this.map = map;
   this.GHHelper = ghHelper;
 
-  this.buckets = 5;
-  this.maxTimeLimitInSeconds = 24 * 60;
+  this.buckets = 5; //Number of Isochrone Parts
+  this.maxTimeLimitInSeconds = 24 * 60; //Max Time Limit for GH isochrones
 
   this.slider = document.getElementById("timelimit"); //Slider Control
   this.vehicles = document.getElementById("vehicles"); //Vehicles Div
@@ -81,7 +98,6 @@ function GUI(map, ghHelper){
   this.min = document.getElementById("min"); //Legend min
 
   this.shapes = [];
-  this.polygons = [];
 
   this.init();
 }
@@ -125,9 +141,10 @@ GUI.prototype = {
   },
 
   onInputKeyDown: function(e){
-    /*if (e.keyCode == 13) {
-      getLatLng(input.value);
-    }*/
+    if (e.keyCode == 13) {
+      var center = _this.GHHelper.getLatLng(_this.input.value);
+      _this.map.setView(new L.LatLng(center[0], center[1]));
+    }
   },
 
   onSliderChange: function(){
@@ -145,18 +162,17 @@ GUI.prototype = {
   },
 
   updatePolygons: function(e){
-    var start = Date.now();
-    _this.polygons = _this.GHHelper.getPoints(e.latlng.lat, e.latlng.lng, _this.vehicle, _this.buckets, _this.maxTimeLimitInSeconds);
-    var delta = Date.now() - start;
-    start = Date.now();
-    _this.drawIsochrones();
-    var deltadraw = Date.now() - start;
-    console.log("Hull: " + delta + "ms Add: " + deltadraw + "ms");
+    //_this.polygons = _this.GHHelper.getPoints(e.latlng.lat, e.latlng.lng, _this.vehicle, _this.buckets, _this.maxTimeLimitInSeconds);
+    _this.GHHelper.getPoints(e.latlng.lat, e.latlng.lng, _this.vehicle, _this.buckets, _this.maxTimeLimitInSeconds, function(polygons){
+      //_this.polygons = polygons;
+      _this.drawIsochrones(polygons);
+    });
+    //_this.GHHelper.getPoints(e.latlng.lat, e.latlng.lng, _this.vehicle, _this.buckets, _this.maxTimeLimitInSeconds);
   },
 
-  drawIsochrones: function(){
-    for(var i = _this.polygons.length - 1; i >= 0; i--){
-      _this.shapes.push(L.polygon([_this.polygons[i], _this.polygons[i - 1] === undefined ? [] : _this.polygons[i - 1]], {
+  drawIsochrones: function(polygons){
+    for(var i = polygons.length - 1; i >= 0; i--){
+      _this.shapes.push(L.polygon([polygons[i], polygons[i - 1] === undefined ? [] : polygons[i - 1]], {
         fill: true,
         color: _this.hslToHex(260 / _this.buckets * (i - 1), 80, 60),
         fillColor: _this.hslToHex(260 / _this.buckets * (i - 1), 80, 60),

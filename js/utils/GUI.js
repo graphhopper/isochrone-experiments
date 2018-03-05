@@ -18,7 +18,6 @@ function GUI(map, ghHelper){
   this.min = document.getElementById("min"); //Legend min
 
   this.shapes = [];
-  this.polygons = [];
 
   this.init();
 }
@@ -62,9 +61,10 @@ GUI.prototype = {
   },
 
   onInputKeyDown: function(e){
-    /*if (e.keyCode == 13) {
-      getLatLng(input.value);
-    }*/
+    if (e.keyCode == 13) {
+      var center = _this.GHHelper.getLatLng(_this.input.value);
+      _this.map.setView(new L.LatLng(center[0], center[1]));
+    }
   },
 
   onSliderChange: function(){
@@ -82,18 +82,17 @@ GUI.prototype = {
   },
 
   updatePolygons: function(e){
-    var start = Date.now();
-    _this.polygons = _this.GHHelper.getPoints(e.latlng.lat, e.latlng.lng, _this.vehicle, _this.buckets, _this.maxTimeLimitInSeconds);
-    var delta = Date.now() - start;
-    start = Date.now();
-    _this.drawIsochrones();
-    var deltadraw = Date.now() - start;
-    console.log("Hull: " + delta + "ms Add: " + deltadraw + "ms");
+    //_this.polygons = _this.GHHelper.getPoints(e.latlng.lat, e.latlng.lng, _this.vehicle, _this.buckets, _this.maxTimeLimitInSeconds);
+    _this.GHHelper.getPoints(e.latlng.lat, e.latlng.lng, _this.vehicle, _this.buckets, _this.maxTimeLimitInSeconds, function(polygons){
+      //_this.polygons = polygons;
+      _this.drawIsochrones(polygons);
+    });
+    //_this.GHHelper.getPoints(e.latlng.lat, e.latlng.lng, _this.vehicle, _this.buckets, _this.maxTimeLimitInSeconds);
   },
 
-  drawIsochrones: function(){
-    for(var i = _this.polygons.length - 1; i >= 0; i--){
-      _this.shapes.push(L.polygon([_this.polygons[i], _this.polygons[i - 1] === undefined ? [] : _this.polygons[i - 1]], {
+  drawIsochrones: function(polygons){
+    for(var i = polygons.length - 1; i >= 0; i--){
+      _this.shapes.push(L.polygon([polygons[i], polygons[i - 1] === undefined ? [] : polygons[i - 1]], {
         fill: true,
         color: _this.hslToHex(260 / _this.buckets * (i - 1), 80, 60),
         fillColor: _this.hslToHex(260 / _this.buckets * (i - 1), 80, 60),
