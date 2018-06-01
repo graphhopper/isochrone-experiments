@@ -3,6 +3,7 @@
 git clone https://github.com/graphhopper/isochrone-experiments
 cd isochrone-experiments
 git checkout deckgl
+# deck.gl requires a not too old npm version, I installed 10.x via nvm, then do:
 npm install
 export MapboxAccessToken=<your mapbox api key>
 npm start
