@@ -21,14 +21,27 @@ mapboxgl.accessToken = location.search.substring(location.search.indexOf("=") + 
 var map = new mapboxgl.Map({
     container: 'map',
     style: "mapbox://styles/mapbox/dark-v9",
-    center: [13.773494149152059, 52.453212494847456 ],
-    zoom: 12
+    center: [13.397827, 52.472743],
+    zoom: 10,
+    pitch: 40,
+    bearing: 20
 });
 
 map.on('load', function () {
 
-   ghIsochrone = new GraphHopperIsochrone({key: "not-needed", host: "http://localhost:8989", vehicle: "car"});
-   ghIsochrone.doRequest({point: "52.472743,13.397827", result: "edgelist", "time_limit": 3600})
+    // insert isochrone layer behind labels
+    var layers = map.getStyle().layers;
+    // Find the index of the first symbol layer in the map style
+    var firstSymbolId;
+    for (var i = 0; i < layers.length; i++) {
+        if (layers[i].type === 'symbol') {
+            firstSymbolId = layers[i].id;
+            break;
+        }
+    }
+
+    ghIsochrone = new GraphHopperIsochrone({key: "not-needed", host: "http://localhost:8989", vehicle: "car"});
+    ghIsochrone.doRequest({point: "52.472743,13.397827", result: "edgelist", "time_limit": 3600})
        .then(function (json) {
 
          var tmpArray = json.polygons;
@@ -40,7 +53,7 @@ map.on('load', function () {
             coordinates.push([[entry[0],entry[1]], [entry[2], entry[3]]]);
          }
 
-map.addLayer({
+         map.addLayer({
             "id": "isochrone",
             "type": "line",
             "source": {
@@ -57,7 +70,7 @@ map.addLayer({
                 "line-color": "#FF7F00",
                 "line-width": 1
             }
-        });
+        }, firstSymbolId);
 
     return true;
    }).catch((error) => {
