@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title>GraphHopper Isochrone Experiment</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.45.0/mapbox-gl.js'></script>
+    <script src="https://cdn.jsdelivr.net/npm/graphhopper-js-api-client/dist/graphhopper-client.js"></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.45.0/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body { margin:0; padding:0; }
+        #map { position:absolute; top:0; bottom:0; width:100%; }
+    </style>
+</head>
+<body>
+
+<div id='map'></div>
+<script>
+
+mapboxgl.accessToken = location.search.substring(location.search.indexOf("=") + 1);
+var map = new mapboxgl.Map({
+    container: 'map',
+    style: "mapbox://styles/mapbox/dark-v9",
+    center: [13.773494149152059, 52.453212494847456 ],
+    zoom: 12
+});
+
+map.on('load', function () {
+
+   ghIsochrone = new GraphHopperIsochrone({key: "not-needed", host: "http://localhost:8989", vehicle: "car"});
+   ghIsochrone.doRequest({point: "52.472743,13.397827", result: "edgelist", "time_limit": 3600})
+       .then(function (json) {
+
+         var tmpArray = json.polygons;
+         var tmpJson = [[[13.397827,52.472743], [-122.48348236083984, 37.83317489144141]]];
+
+         var coordinates = [];
+         for(var i = 0; i < tmpArray.length; i++) {
+            var entry = tmpArray[i];
+            coordinates.push([[entry[0],entry[1]], [entry[2], entry[3]]]);
+         }
+
+map.addLayer({
+            "id": "isochrone",
+            "type": "line",
+            "source": {
+                "type": "geojson",
+                "data": {
+                  "type": "Feature",
+                  "geometry": {
+                    "type": "MultiLineString",
+                    "coordinates": coordinates
+                  }
+                }
+            },
+            "paint": {
+                "line-color": "#FF7F00",
+                "line-width": 1
+            }
+        });
+
+    return true;
+   }).catch((error) => {
+    console.log("Api call error");
+    alert(error.message);
+   });
+
+});
+
+</script>
+
+</body>
+</html>
