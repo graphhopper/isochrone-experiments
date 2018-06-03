@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title>GraphHopper Isochrone Experiment</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.45.0/mapbox-gl.js'></script>
+    <script src="https://cdn.jsdelivr.net/npm/graphhopper-js-api-client/dist/graphhopper-client.js"></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.45.0/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body { margin:0; padding:0; }
+        #map { position:absolute; top:0; bottom:0; width:100%; }
+    </style>
+</head>
+<body>
+
+<div id='map'></div>
+<script>
+
+mapboxgl.accessToken = location.search.substring(location.search.indexOf("=") + 1);
+var map = new mapboxgl.Map({
+    container: 'map',
+    style: "mapbox://styles/mapbox/dark-v9",
+    center: [13.397827, 52.472743],
+    zoom: 10,
+    pitch: 40,
+    bearing: 20
+});
+
+map.on('load', function () {
+
+     map.addLayer({
+        "id": "gh-isochrone",
+        "type": "line",
+        "source": {
+            "type": "vector",
+            "tiles": ["http://localhost:8989/isochrone/?result=mvt&point=52.472743,13.397827&time_limit=1200&vehicle=car"],
+            "minzoom": 6,
+            "maxzoom": 14
+        },
+        "source-layer": "isochrone-x",
+        "layout": {
+            "line-join": "round",
+            "line-cap": "round"
+        },
+        "paint": {
+            "line-color": "#ff69b4",
+            "line-width": 2
+        }
+    });
+
+});
+
+</script>
+
+</body>
+</html>

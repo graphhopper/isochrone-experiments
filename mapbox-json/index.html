@@ -5,6 +5,7 @@
     <title>GraphHopper Isochrone Experiment</title>
     <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
     <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.45.0/mapbox-gl.js'></script>
+    <script src="https://cdn.jsdelivr.net/npm/graphhopper-js-api-client/dist/graphhopper-client.js"></script>
     <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.45.0/mapbox-gl.css' rel='stylesheet' />
     <style>
         body { margin:0; padding:0; }
@@ -21,60 +22,10 @@ var map = new mapboxgl.Map({
     container: 'map',
     style: "mapbox://styles/mapbox/dark-v9",
     center: [13.397827, 52.472743],
-    zoom: 9,
+    zoom: 10,
     pitch: 40,
     bearing: 20
 });
-
-isochroneNative = function(lng, lat, vehicle, timeLimit, callback){
-    var url = "http://localhost:8989/isochrone?"
-            + "point=" + lat + "%2C" + lng
-            + "&time_limit=" + timeLimit
-            + "&vehicle=" + vehicle
-            + "&result=edgelist";
-
-    var xhttp = new XMLHttpRequest();
-        xhttp.open("GET", url, true);
-        xhttp.responseType = 'arraybuffer';
-        xhttp.callback = callback;
-        xhttp.setRequestHeader("Content-type", "application/octet-stream");
-
-    var _this = this;
-
-    // TODO error handling if exception or http code 500
-
-    xhttp.onload = function(e) {
-      var arrayBuffer = xhttp.response;
-      var dataView = new DataView(arrayBuffer);
-
-      var pointer = 0;
-      var entries = dataView.getInt32(pointer);
-      var entrySize = dataView.getInt32(pointer + 4);
-      pointer += 8;
-
-      if(dataView.byteLength + pointer != entries * entrySize)
-         console.log("expected byte size does not match");
-
-      var coordinates = [];
-      console.log(dataView.byteLength);
-      console.log(entries);
-      console.log(entrySize);
-      for(var i = 0; i < entries; i++) {
-
-         var x1 = dataView.getFloat32(pointer);
-         var y1 = dataView.getFloat32(pointer + 4);
-         var x2 = dataView.getFloat32(pointer + 8);
-         var y2 = dataView.getFloat32(pointer + 12);
-         coordinates.push([[x1,y1], [x2, y2]]);
-
-         pointer += entrySize;
-      }
-
-      callback(coordinates);
-    }
-
-    xhttp.send();
-}
 
 map.on('load', function () {
 
@@ -89,7 +40,18 @@ map.on('load', function () {
         }
     }
 
-    isochroneNative(13.397827, 52.472743, 'car', 3600, function(coordinates) {
+    ghIsochrone = new GraphHopperIsochrone({key: "not-needed", host: "http://localhost:8989", vehicle: "car"});
+    ghIsochrone.doRequest({point: "52.472743,13.397827", result: "edgelist", "time_limit": 3600})
+       .then(function (json) {
+
+         var tmpArray = json.polygons;
+         var tmpJson = [[[13.397827,52.472743], [-122.48348236083984, 37.83317489144141]]];
+
+         var coordinates = [];
+         for(var i = 0; i < tmpArray.length; i++) {
+            var entry = tmpArray[i];
+            coordinates.push([[entry[0],entry[1]], [entry[2], entry[3]]]);
+         }
 
          map.addLayer({
             "id": "isochrone",
@@ -109,7 +71,12 @@ map.on('load', function () {
                 "line-width": 1
             }
         }, firstSymbolId);
-    });
+
+    return true;
+   }).catch((error) => {
+    console.log("Api call error");
+    alert(error.message);
+   });
 
 });
 

@@ -7,20 +7,21 @@ import DeckGL, {MapView, MapController, LineLayer, ScatterplotLayer} from 'deck.
 import {GraphHopper} from 'graphhopper-js-api-client';
 import {setParameters} from 'luma.gl';
 
-// Set your mapbox token here
-const MAPBOX_TOKEN = process.env.MapboxAccessToken; // eslint-disable-line
-
+// Set your maptiler token here, only the mapbox specific command line variable is passed (?) so we cannot rename it to avoid confusion!?
+const VT_TOKEN = process.env.MapboxAccessToken; // eslint-disable-line
+const LAT = 51.436327;
+const LON = 14.248281;
 const INITIAL_VIEW_STATE = {
-  latitude: 52.472743,
-  longitude: 13.397827,
-  zoom: 11,
+  latitude: LAT,
+  longitude: LON,
+  zoom: 9,
   maxZoom: 16,
   pitch: 50,
   bearing: 0
 };
 
 function getColor(d) {
-  const r = d[4] / 60.0 / 60000.0;
+  const r = d[2] / 60.0 / 80000.0;
 
   return [255 * (1 - r), 128 * r, 255 * r, 255];
 }
@@ -36,17 +37,61 @@ function getSize(type) {
 }
 
 const globalVar = {};
-const ghIsochrone = new GraphHopperIsochrone({key: "not-needed", host: "http://localhost:8989", vehicle: "car"});
-ghIsochrone.doRequest({point: "52.472743,13.397827", result: "edgelist", "time_limit": 3600})
-    .then(function (json) {
-    // [{start:[11.568604,49.943267],end: [10.88685,49.892616]}]
+const isochroneNative = function(lng, lat, vehicle, timeLimit, callback){
+    var url = "http://localhost:8989/isochrone?"
+            + "point=" + lat + "%2C" + lng
+            + "&time_limit=" + timeLimit
+            + "&vehicle=" + vehicle
+            + "&result=edgelist";
 
-    globalVar.callback(json.polygons);
-    return true;
-}).catch((error) => {
-    console.log("Api call error");
-    alert(error.message);
-});
+    var xhttp = new XMLHttpRequest();
+        xhttp.open("GET", url, true);
+        xhttp.responseType = 'arraybuffer';
+        xhttp.callback = callback;
+        xhttp.setRequestHeader("Content-type", "application/octet-stream");
+
+    var _this = this;
+
+    // TODO error handling if exception or http code 500
+
+    xhttp.onload = function(e) {
+      var arrayBuffer = xhttp.response;
+      var dataView = new DataView(arrayBuffer);
+
+      var pointer = 0;
+      var entries = dataView.getInt32(pointer);
+      var entrySize = dataView.getInt32(pointer + 4);
+      pointer += 8;
+
+      if(dataView.byteLength + pointer != entries * entrySize)
+         console.log("expected byte size does not match");
+
+      var coordinates = [];
+      console.log(dataView.byteLength);
+      console.log(entries);
+      console.log(entrySize);
+      for(var i = 0; i < entries; i++) {
+
+         var x1 = dataView.getFloat32(pointer);
+         var y1 = dataView.getFloat32(pointer + 4);
+         var x2 = dataView.getFloat32(pointer + 8);
+         var y2 = dataView.getFloat32(pointer + 12);
+         var time = dataView.getFloat32(pointer + 16);
+         // var distance = dataView.getFloat32(pointer + 20);
+         coordinates.push([[x1,y1], [x2, y2], time]);
+
+         pointer += entrySize;
+      }
+
+      callback(coordinates);
+    }
+
+    xhttp.send();
+}
+
+isochroneNative(LON, LAT, "car", 3600, function (coordinates) {
+    globalVar.callback(coordinates);
+})
 
 class App extends Component {
   constructor(props) {
@@ -70,28 +115,24 @@ class App extends Component {
   }
 
   render() {
-    console.log("render")
     const {
       strokeWidth = 5,
 
       onViewStateChange = (({viewState}) => this.setState({viewState})),
       viewState = this.state.viewState,
 
-      mapboxApiAccessToken = MAPBOX_TOKEN,
-      mapStyle = "mapbox://styles/mapbox/dark-v9"
+      mapStyle = 'https://free.tilehosting.com/styles/darkmatter/style.json?key=' + VT_TOKEN
     } = this.props;
 
     const layers = [
       new LineLayer({
-        id: 'flight-paths',
-        data: this.isochroneData,//[{start:[11.568604,49.943267],end: [11.087952,49.450272]}],
+        id: 'isochrone-data',
+        data: this.isochroneData,
         strokeWidth,
         fp64: false,
-        getSourcePosition: d => [d[0], d[1]],
-        getTargetPosition: d => [d[2], d[3]],
-        getColor,
-//        pickable: Boolean(this.props.onHover),
-//        onHover: this.props.onHover
+        getSourcePosition: d => [d[0][0], d[0][1]],
+        getTargetPosition: d => [d[1][0], d[1][1]],
+        getColor
       })
     ];
 
@@ -112,7 +153,6 @@ class App extends Component {
 
           mapStyle={mapStyle}
           preventStyleDiffing={true}
-          mapboxApiAccessToken={mapboxApiAccessToken}
         />
 
       </DeckGL>

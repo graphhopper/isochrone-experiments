@@ -15,6 +15,8 @@ This project stands under the Apache License 2.0.
 
 ## Deck.gl Usage
 
+uses edgelist-json
+
 ```bash
 git clone https://github.com/graphhopper/isochrone-experiments
 cd isochrone-experiments
@@ -28,7 +30,23 @@ npm start
 
 ![image](./img/isochrone-example1.png)
 
-## Mapbox GL JS Usage
+## Mapbox GL JS via JSON
+
+uses result=edgelist-json
+
+```bash
+git clone https://github.com/graphhopper/isochrone-experiments
+cd isochrone-experiments
+git checkout deckgl
+cd mapbox-json
+npx http-server
+http://127.0.0.1:8081/index.html?key=<mapbox key>
+```
+
+## Mapbox GL JS via binary
+
+uses the native response via result=edgelist 
+which is 5 times smaller (1) compared to the 'compact' JSON edge list
 
 ```bash
 git clone https://github.com/graphhopper/isochrone-experiments
@@ -37,13 +55,15 @@ git checkout deckgl
 cd mapbox
 npx http-server
 http://127.0.0.1:8081/index.html?key=<mapbox key>
-
-include isochrone as geojson
-https://www.mapbox.com/mapbox-gl-js/example/geojson-layer-in-stack/
+```
 
 ## Isochone as Vector Tile Source
 
-TODO
-for fast rendering use vector tileset sources over GeoJSON data sources when possible
-https://www.mapbox.com/mapbox-gl-js/example/third-party/
-```
+See mvt folder and result=mvt
+
+Problems:
+
+ * couldn't get it display the mvt (size is small but according to vtzero it
+   is a valid mvt)
+ * it takes ages to create the mvt with the used Java lib (>10sec)
+ * mapbox fetches the vector tiles per tile resulting in multiple calls where we would just need one
