@@ -28,7 +28,7 @@ export MapboxAccessToken=<your mapbox api key>
 npm start
 ```
 
-![image](./img/isochrone-example1.png)
+![image](./deckgl/img/isochrone-example1.png)
 
 ## Mapbox GL JS via JSON
 
