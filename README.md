@@ -15,7 +15,7 @@ This project stands under the Apache License 2.0.
 
 ## Deck.gl Usage
 
-uses edgelist-json
+uses edgelist
 
 ```bash
 git clone https://github.com/graphhopper/isochrone-experiments
@@ -30,9 +30,10 @@ npm start
 
 ![image](./deckgl/img/isochrone-example1.png)
 
-## Mapbox GL JS via JSON
+## Mapbox GL JS
 
-uses result=edgelist-json
+uses the native response via result=edgelist which is 5 times smaller (1) compared to the 'compact' JSON edge list
+(mapbox-json folder)
 
 ```bash
 git clone https://github.com/graphhopper/isochrone-experiments
@@ -43,25 +44,11 @@ npx http-server
 http://127.0.0.1:8081/index.html?key=<mapbox key>
 ```
 
-## Mapbox GL JS via binary
-
-uses the native response via result=edgelist 
-which is 5 times smaller (1) compared to the 'compact' JSON edge list
-
-```bash
-git clone https://github.com/graphhopper/isochrone-experiments
-cd isochrone-experiments
-git checkout deckgl
-cd mapbox
-npx http-server
-http://127.0.0.1:8081/index.html?key=<mapbox key>
-```
-
 ## Isochone as Vector Tile Source
 
 See mvt folder and result=mvt
 
-Problems:
+Too many problems at the moment:
 
  * couldn't get it display the mvt (size is small but according to vtzero it
    is a valid mvt)
