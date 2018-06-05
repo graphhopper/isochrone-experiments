@@ -1,6 +1,6 @@
 # Isochrone Experiments
 
-For these experiments you need a modified GraphHopper core server:
+For these [isochrone](https://en.wikipedia.org/wiki/Isochrone_map) experiments you need a modified GraphHopper core server:
 
 ```bash
 git clone https://github.com/graphhopper/graphhopper
