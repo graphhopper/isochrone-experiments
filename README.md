@@ -24,7 +24,8 @@ git checkout deckgl
 cd deckgl
 # deck.gl requires a not too old npm version, I installed 10.x via nvm, then do:
 npm install
-export MapboxAccessToken=<your mapbox api key>
+# https://www.maptiler.com/cloud/
+export Token=<your maptiler api key>
 npm start
 ```
 
