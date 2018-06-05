@@ -1,6 +1,7 @@
 /* global document, window */
-import React, {Component} from 'react';
+import React, {Component, PureComponent} from 'react';
 import {render} from 'react-dom';
+import autobind from 'react-autobind';
 
 import {StaticMap} from 'react-map-gl';
 import DeckGL, {MapView, MapController, LineLayer, ScatterplotLayer, GeoJsonLayer} from 'deck.gl';
@@ -41,9 +42,9 @@ function getSize(type) {
 }
 
 const globalVar = {};
-const isochroneNative = function(lng, lat, vehicle, timeLimit, callback){
+const isochroneNative = function(lngLat, vehicle, timeLimit, callback){
     var url = "http://localhost:8989/isochrone?"
-            + "point=" + lat + "%2C" + lng
+            + "point=" + lngLat[1] + "%2C" + lngLat[0]
             + "&time_limit=" + timeLimit
             + "&vehicle=" + vehicle
             + "&result=edgelist";
@@ -90,13 +91,14 @@ const isochroneNative = function(lng, lat, vehicle, timeLimit, callback){
     xhttp.send();
 }
 
-isochroneNative(LON, LAT, "car", 3600, function (coordinates) {
+isochroneNative([LON, LAT], "car", 3600, function (coordinates) {
     globalVar.callback(coordinates);
 })
 
 class App extends Component {
   constructor(props) {
     super(props);
+    autobind(this);
     this.state = {viewState: INITIAL_VIEW_STATE};
   }
 
@@ -113,6 +115,16 @@ class App extends Component {
       this.isochroneData = data;
       this.forceUpdate();
     }
+  }
+
+  _onClickHandler(event) {
+    // 'raw' onClick triggers this call and now we need to convert into map coordinates
+    // access 'ref' defined in DeckGL
+    const lngLat = this.refs.deckgl.deck.layerManager.context.viewport.unproject([event.clientX, event.clientY]);
+    console.log(lngLat)
+    isochroneNative(lngLat, "car", 3600, function (coordinates) {
+        globalVar.callback(coordinates);
+    })
   }
 
   render() {
@@ -139,6 +151,7 @@ class App extends Component {
         highlightColor: [255, 255, 0, 255],
         autoHighlight: true,
         pickable: true,
+
         // interesting for debugging:
         //onHover: info => console.log('Hovered:', info),
         //onClick: info => console.log('Clicked:', info)
@@ -188,12 +201,17 @@ class App extends Component {
     ];
 
     return (
-      <DeckGL layers={layers} views={new MapView({id: 'map'})} viewState={viewState} onViewStateChange={onViewStateChange}
-        controller={MapController} onWebGLInitialized={this._initialize}>
+      <div onClick={this._onClickHandler}>
+          <DeckGL
+            ref='deckgl'
+            layers={layers} views={new MapView({id: 'map'})} viewState={viewState} onViewStateChange={onViewStateChange}
+            pickingRadius={5}
+            controller={MapController} onWebGLInitialized={this._initialize}>
 
-        <StaticMap width={400} height={400} viewId="map" {...viewState} reuseMaps mapStyle={mapStyle} preventStyleDiffing={true}/>
+            <StaticMap width={400} height={400} viewId="map" {...viewState} reuseMaps mapStyle={mapStyle} preventStyleDiffing={true}/>
 
-      </DeckGL>
+          </DeckGL>
+      </div>
     );
   }
 }
