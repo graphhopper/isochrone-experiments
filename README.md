@@ -15,7 +15,8 @@ This project stands under the Apache License 2.0.
 
 ## Deck.gl Usage
 
-uses edgelist
+This version uses a binary edgelist returned from the customized graphhopper
+server set up above.
 
 ```bash
 git clone https://github.com/graphhopper/isochrone-experiments
