@@ -3,12 +3,13 @@ import React, {Component} from 'react';
 import {render} from 'react-dom';
 
 import {StaticMap} from 'react-map-gl';
-import DeckGL, {MapView, MapController, LineLayer, ScatterplotLayer} from 'deck.gl';
+import DeckGL, {MapView, MapController, LineLayer, ScatterplotLayer, GeoJsonLayer} from 'deck.gl';
 import {GraphHopper} from 'graphhopper-js-api-client';
 import {setParameters} from 'luma.gl';
 
-// Set your maptiler token here, only the mapbox specific command line variable is passed (?) so we cannot rename it to avoid confusion!?
-const VT_TOKEN = process.env.MapboxAccessToken; // eslint-disable-line
+// Set your maptiler token here: https://www.maptiler.com/cloud/
+const VT_TOKEN = process.env.Token; // eslint-disable-line
+
 const LAT = 51.436327;
 const LON = 14.248281;
 const INITIAL_VIEW_STATE = {
@@ -21,7 +22,10 @@ const INITIAL_VIEW_STATE = {
 };
 
 function getColor(d) {
-  const r = d[2] / 60.0 / 80000.0;
+  // use time as color
+   const r = d[2] / 60.0 / 70.0;
+  // using distance as color does not make a big difference but time reflects a 'fastest' path tree best
+//  const r = d[3] / 1000.0 / 60.0;
 
   return [255 * (1 - r), 128 * r, 255 * r, 255];
 }
@@ -63,13 +67,10 @@ const isochroneNative = function(lng, lat, vehicle, timeLimit, callback){
       var entrySize = dataView.getInt32(pointer + 4);
       pointer += 8;
 
-      if(dataView.byteLength + pointer != entries * entrySize)
-         console.log("expected byte size does not match");
+      if(dataView.byteLength - pointer != entries * entrySize)
+         console.log("expected byte size does not match "  + (dataView.byteLength + pointer) + " vs " + entries * entrySize);
 
       var coordinates = [];
-      console.log(dataView.byteLength);
-      console.log(entries);
-      console.log(entrySize);
       for(var i = 0; i < entries; i++) {
 
          var x1 = dataView.getFloat32(pointer);
@@ -77,8 +78,8 @@ const isochroneNative = function(lng, lat, vehicle, timeLimit, callback){
          var x2 = dataView.getFloat32(pointer + 8);
          var y2 = dataView.getFloat32(pointer + 12);
          var time = dataView.getFloat32(pointer + 16);
-         // var distance = dataView.getFloat32(pointer + 20);
-         coordinates.push([[x1,y1], [x2, y2], time]);
+         var distance = dataView.getFloat32(pointer + 20);
+         coordinates.push([[x1,y1], [x2, y2], time, distance]);
 
          pointer += entrySize;
       }
@@ -121,6 +122,8 @@ class App extends Component {
       onViewStateChange = (({viewState}) => this.setState({viewState})),
       viewState = this.state.viewState,
 
+      // mapStyle = 'mapbox://styles/mapbox/dark-v9'
+      // use MapTiler cloud instead
       mapStyle = 'https://free.tilehosting.com/styles/darkmatter/style.json?key=' + VT_TOKEN
     } = this.props;
 
@@ -132,28 +135,63 @@ class App extends Component {
         fp64: false,
         getSourcePosition: d => [d[0][0], d[0][1]],
         getTargetPosition: d => [d[1][0], d[1][1]],
-        getColor
+        getColor,
+        highlightColor: [255, 255, 0, 255],
+        autoHighlight: true,
+        pickable: true,
+        // interesting for debugging:
+        //onHover: info => console.log('Hovered:', info),
+        //onClick: info => console.log('Clicked:', info)
       })
+        /* display json, details: http://uber.github.io/deck.gl/#/documentation/deckgl-api-reference/layers/geojson-layer
+       ,new GeoJsonLayer({
+          id: 'geojson-layer',
+          data: {
+                "type": "FeatureCollection",
+                "features": [{
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [13.387785, 52.515855]
+                    },
+                    "properties": {"title": "Test Location 1"}
+                }, {
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [14.219055, 51.427471]
+                    },
+                    "properties": {"title": "Test Location 2"}
+                }]
+          },
+          pickable: true,
+          extruded: true,
+          pointRadiusMinPixels: 10,
+          getFillColor: d => [255, 255, 0, 255],
+          getColor: d => [255, 255, 0, 255]
+        })
+        */
+
+        /* instead streets, print the junctions:
+        ,new ScatterplotLayer({
+            id: 'scatterplot-layer',
+            data: this.isochroneData,
+            pickable: true,
+            opacity: 0.8,
+            radiusScale: 3,
+            radiusMinPixels: 1,
+            radiusMaxPixels: 50,
+            getPosition: d => [d[0][0], d[0][1]],
+            getRadius: d => 1,
+            getColor
+        })*/
     ];
 
     return (
-      <DeckGL
-        layers={layers}
-        views={new MapView({id: 'map'})}
-        viewState={viewState}
-        onViewStateChange={onViewStateChange}
-        controller={MapController}
-        onWebGLInitialized={this._initialize}
-      >
+      <DeckGL layers={layers} views={new MapView({id: 'map'})} viewState={viewState} onViewStateChange={onViewStateChange}
+        controller={MapController} onWebGLInitialized={this._initialize}>
 
-        <StaticMap
-          viewId="map"
-          {...viewState}
-          reuseMaps
-
-          mapStyle={mapStyle}
-          preventStyleDiffing={true}
-        />
+        <StaticMap width={400} height={400} viewId="map" {...viewState} reuseMaps mapStyle={mapStyle} preventStyleDiffing={true}/>
 
       </DeckGL>
     );
