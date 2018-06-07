@@ -43,6 +43,7 @@ function getSize(type) {
 
 const globalVar = {};
 const isochroneNative = function(lngLat, vehicle, timeLimit, callback){
+    console.log("request isochrone at " + lngLat)
     var url = "http://localhost:8989/isochrone?"
             + "point=" + lngLat[1] + "%2C" + lngLat[0]
             + "&time_limit=" + timeLimit
@@ -99,7 +100,8 @@ class App extends Component {
   constructor(props) {
     super(props);
     autobind(this);
-    this.state = {viewState: INITIAL_VIEW_STATE};
+    this.state = {viewState: INITIAL_VIEW_STATE, time: 0};
+    this.counter = 0;
   }
 
   _initialize(gl) {
@@ -109,29 +111,63 @@ class App extends Component {
     });
   }
 
-  componentWillMount() {
+  componentDidMount() {
+    this._animate();
+
     globalVar.callback = (data) => {
-      // looks like a hack ;)
-      this.isochroneData = data;
-      this.forceUpdate();
+        // looks like a hack ;)
+        this.isochroneData = data;
+        this.forceUpdate();
     }
+  }
+
+  componentWillMount() {
+    if (this._animationFrame) {
+      window.cancelAnimationFrame(this._animationFrame);
+    }
+  }
+
+  _animate() {
+    const timestamp = Date.now();
+
+    // 60 minutes
+    const loopTime = 3600;
+    // avoid too frequent changes
+    const factor = 100;
+//    console.log(timestamp % loopTime + ", " + this.counter)
+    this.setState({
+      time: Math.round(timestamp % loopTime / factor) * factor
+    });
+
+    this._animationFrame = window.requestAnimationFrame(this._animate.bind(this));
+    // stopping does not work
+//    this.counter++;
+//    if (this._animationFrame && this.counter > 1000) {
+//        this.counter = 0;
+//        window.cancelAnimationFrame(this._animationFrame);
+//    }
   }
 
   _onClickHandler(event) {
     // 'raw' onClick triggers this call and now we need to convert into map coordinates
     // access 'ref' defined in DeckGL
     const lngLat = this.refs.deckgl.deck.layerManager.context.viewport.unproject([event.clientX, event.clientY]);
-    console.log(lngLat)
     isochroneNative(lngLat, "car", 3600, function (coordinates) {
         globalVar.callback(coordinates);
     })
   }
 
+  _onViewStateChange({viewState}) {
+    this.setState({
+      viewState: {...this.state.viewState, ...viewState}
+    });
+  }
+
   render() {
     const {
       strokeWidth = 5,
-
-      onViewStateChange = (({viewState}) => this.setState({viewState})),
+      time = this.state.time,
+      onViewStateChange = this._onViewStateChange.bind(this),
       viewState = this.state.viewState,
 
       // mapStyle = 'mapbox://styles/mapbox/dark-v9'
@@ -147,11 +183,13 @@ class App extends Component {
         fp64: false,
         getSourcePosition: d => [d[0][0], d[0][1]],
         getTargetPosition: d => [d[1][0], d[1][1]],
-        getColor,
+        getColor: d => d[2] < time ? getColor(d): [0, 0, 0, 0],
         highlightColor: [255, 255, 0, 255],
         autoHighlight: true,
         pickable: true,
-
+        updateTriggers: {
+           getColor: time
+        }
         // interesting for debugging:
         //onHover: info => console.log('Hovered:', info),
         //onClick: info => console.log('Clicked:', info)
