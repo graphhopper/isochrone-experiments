@@ -5,14 +5,13 @@ import autobind from 'react-autobind';
 
 import {StaticMap} from 'react-map-gl';
 import DeckGL, {MapView, MapController, LineLayer, ScatterplotLayer, GeoJsonLayer} from 'deck.gl';
-import {GraphHopper} from 'graphhopper-js-api-client';
 import {setParameters} from 'luma.gl';
 
 // Set your maptiler token here: https://www.maptiler.com/cloud/
 const VT_TOKEN = process.env.Token; // eslint-disable-line
 
-const LAT = 51.436327;
-const LON = 14.248281;
+const LAT = 52.517292;
+const LON = 13.388557;
 const INITIAL_VIEW_STATE = {
   latitude: LAT,
   longitude: LON,
@@ -128,24 +127,25 @@ class App extends Component {
   }
 
   _animate() {
+    const skipAnimation = true;
+    if(skipAnimation) {
+      this.setState({time: 3600});
+      return;
+    }
+
     const timestamp = Date.now();
 
     // 60 minutes
     const loopTime = 3600;
     // avoid too frequent changes
-    const factor = 100;
-//    console.log(timestamp % loopTime + ", " + this.counter)
-    this.setState({
-      time: Math.round(timestamp % loopTime / factor) * factor
-    });
+    const unitsInOneFrame = 1.0;
+    // scale with /1000 for real time
+    const realWorldFactor = 2.0;
 
     this._animationFrame = window.requestAnimationFrame(this._animate.bind(this));
-    // stopping does not work
-//    this.counter++;
-//    if (this._animationFrame && this.counter > 1000) {
-//        this.counter = 0;
-//        window.cancelAnimationFrame(this._animationFrame);
-//    }
+
+    // console.log(timestamp % loopTime + ", " + this.counter)
+    this.setState({time: Math.round((timestamp / realWorldFactor) % loopTime / unitsInOneFrame) * unitsInOneFrame});
   }
 
   _onClickHandler(event) {
