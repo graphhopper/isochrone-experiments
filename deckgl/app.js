@@ -5,7 +5,6 @@ import autobind from 'react-autobind';
 
 import {StaticMap} from 'react-map-gl';
 import DeckGL, {MapView, MapController, LineLayer, ScatterplotLayer, GeoJsonLayer} from 'deck.gl';
-import {GraphHopper} from 'graphhopper-js-api-client';
 import {setParameters} from 'luma.gl';
 
 // Set your maptiler token here: https://www.maptiler.com/cloud/
