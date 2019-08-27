@@ -9,7 +9,9 @@ git checkout isochrone-edgelist
 ./graphhopper.sh web your-area.pbf
 ```
 
-*Update*: A similar way is now possible with a stable release via gzipped CSV since 0.13 (not a binary format). See [this PR](https://github.com/graphhopper/graphhopper/pull/1577).
+# Update
+
+A similar endpoint /spt is now available in a stable release via gzipped CSV since 0.13 (not a binary format). See [this PR](https://github.com/graphhopper/graphhopper/pull/1577).
 
 ## License
 
